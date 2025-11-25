@@ -8,7 +8,7 @@ from models import Feed, NewsItem
 
 # ---------------------------------------------------------
 # ⚠️ COLOQUE SEU WEBHOOK AQUI ANTES DE SALVAR
-DISCORD_WEBHOOK_URL = "SUA_URL_DO_DISCORD_AQUI" 
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1442718193662693438/pu30bsXfYWn8AdAVDq0VsmfA6nonyxUZYAIAxet1boBAJ79EqGkWaNooCeUwan4XpXMr" 
 # ---------------------------------------------------------
 
 KEYWORDS = [
