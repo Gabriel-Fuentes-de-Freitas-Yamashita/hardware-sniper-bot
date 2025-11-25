@@ -1,3 +1,4 @@
+import os
 import feedparser
 import asyncio
 import httpx
@@ -7,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import Feed, NewsItem
 
 # ---------------------------------------------------------
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1442718193662693438/pu30bsXfYWn8AdAVDq0VsmfA6nonyxUZYAIAxet1boBAJ79EqGkWaNooCeUwan4XpXMr" 
+raw_webhooks = os.getenv("DISCORD_WEBHOOK_URL", "")
+WEBHOOK_LIST = [url.strip() for url in raw_webhooks.split(",") if url.strip()]
 # ---------------------------------------------------------
 
 # 🎯 SNIPER MODE: Lista Definitiva de Hardware
@@ -63,14 +65,15 @@ def extrair_imagem(entry):
     return None
 
 async def send_discord_alert(title: str, link: str, image_url: str = None):
-    if not DISCORD_WEBHOOK_URL.startswith("http"):
+    # Se a lista estiver vazia, não faz nada
+    if not WEBHOOK_LIST:
         return
 
     embed = {
         "title": "🔥 Alerta Sniper!",
         "description": f"**{title}**",
         "url": link,
-        "color": 5763719,
+        "color": 10181046,
         "footer": {"text": "Monitorando Preços 24/7"},
     }
     if image_url:
@@ -79,11 +82,14 @@ async def send_discord_alert(title: str, link: str, image_url: str = None):
     payload = {"username": "Hardware Sniper", "embeds": [embed]}
 
     async with httpx.AsyncClient() as client:
-        try:
-            await client.post(DISCORD_WEBHOOK_URL, json=payload)
-            print(f"🔔 Alerta enviado: {title[:20]}...")
-        except Exception as e:
-            print(f"❌ Erro Discord: {e}")
+        # --- AQUI ESTÁ A MÁGICA: LOOP PARA TODOS OS SERVIDORES ---
+        for webhook_url in WEBHOOK_LIST:
+            try:
+                # Envia para cada servidor da lista
+                await client.post(webhook_url, json=payload)
+                print(f"🔔 Enviado para um servidor: {title[:20]}...")
+            except Exception as e:
+                print(f"❌ Erro ao enviar para um dos Webhooks: {e}")
 
 async def update_feeds(db: AsyncSession):
     print("🔄 Verificando Feeds...")
