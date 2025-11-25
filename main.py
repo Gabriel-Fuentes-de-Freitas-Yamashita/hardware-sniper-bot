@@ -1,49 +1,46 @@
-import os
 import json
-import asyncio # <--- Importante para o tempo de espera
+import asyncio
+import os
 import redis.asyncio as redis
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-
-# Importações dos seus arquivos
 from database import engine, Base, get_db, AsyncSessionLocal
 from models import Feed, NewsItem
 from services import update_feeds
 
 app = FastAPI(title="Hardware Sniper Bot")
 
+# Configuração Segura do Redis
+# Se não tiver variável REDIS_URL, tenta localhost.
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = redis.from_url(redis_url, decode_responses=True)
+try:
+    redis_client = redis.from_url(redis_url, decode_responses=True)
+except:
+    redis_client = None # Roda sem cache se o Redis falhar
 
-# --- FUNÇÃO DO LOOP AUTOMÁTICO ---
+# --- LOOP AUTOMÁTICO ---
 async def monitorar_automaticamente():
-    """Roda infinitamente em background verificando preços a cada 5 minutos"""
     print("⏰ Monitoramento Automático INICIADO!")
     while True:
         try:
-            # Cria uma nova sessão de banco apenas para essa verificação
             async with AsyncSessionLocal() as session:
                 await update_feeds(session)
         except Exception as e:
-            print(f"❌ Erro no monitoramento automático: {e}")
+            print(f"❌ Erro no loop: {e}")
         
-        # Espera 300 segundos (5 minutos) antes da próxima checagem
-        # NÃO diminua muito isso para não ser bloqueado pelos sites (IP Ban)
-        print("⏳ Aguardando 5 minutos para a próxima varredura...")
-        await asyncio.sleep(300) 
+        # Espera 5 minutos (300 segundos)
+        await asyncio.sleep(300)
 
 @app.on_event("startup")
 async def startup():
-    # 1. Cria as tabelas do banco
+    # Cria tabelas no banco (Postgres ou SQL Server)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
-    # 2. Inicia o robô automático em segundo plano
+    # Inicia o robô
     asyncio.create_task(monitorar_automaticamente())
-
-# --- ROTAS NORMAIS DA API (Opcionais agora, já que é automático) ---
 
 @app.post("/feeds/")
 async def adicionar_feed(url: str, name: str, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
@@ -60,9 +57,14 @@ async def adicionar_feed(url: str, name: str, background_tasks: BackgroundTasks,
 async def ler_noticias(busca: str = None, db: AsyncSession = Depends(get_db)):
     cache_key = f"news_{busca}" if busca else "news_geral"
     
-    cached_news = await redis_client.get(cache_key)
-    if cached_news:
-        return {"source": "redis", "filter": busca, "data": json.loads(cached_news)}
+    # Tenta Cache se o Redis estiver ativo
+    if redis_client:
+        try:
+            cached_news = await redis_client.get(cache_key)
+            if cached_news:
+                return {"source": "redis", "filter": busca, "data": json.loads(cached_news)}
+        except:
+            pass # Ignora erro de redis
 
     query = select(NewsItem).order_by(NewsItem.published_at.desc()).limit(20)
     if busca:
@@ -72,14 +74,21 @@ async def ler_noticias(busca: str = None, db: AsyncSession = Depends(get_db)):
     news = result.scalars().all()
     news_data = [{"id": n.id, "title": n.title, "link": n.link} for n in news]
 
-    if news_data:
-        await redis_client.set(cache_key, json.dumps(news_data), ex=60)
+    # Salva Cache se o Redis estiver ativo
+    if redis_client and news_data:
+        try:
+            await redis_client.set(cache_key, json.dumps(news_data), ex=60)
+        except:
+            pass
 
-    return {"source": "sql_server", "filter": busca, "data": news_data}
+    return {"source": "database", "filter": busca, "data": news_data}
 
 @app.post("/force-update/")
 async def forcar_atualizacao(background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
-    """Para quando você está ansioso e não quer esperar 5 minutos"""
-    await redis_client.delete("latest_news")
+    if redis_client:
+        try:
+            await redis_client.delete("latest_news")
+        except:
+            pass
     background_tasks.add_task(update_feeds, db)
-    return {"message": "Atualização forçada iniciada!"}
+    return {"message": "Atualização forçada!"}
