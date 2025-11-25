@@ -13,6 +13,13 @@ from services import update_feeds
 
 app = FastAPI(title="Hardware Sniper Bot")
 
+@app.get("/")
+async def home():
+    return {
+        "status": "online",
+        "message": "Hardware Sniper Bot rodando! 🚀",
+        "docs": "/docs"
+    }
 # --- SEGURANÇA ---
 # Define que a senha deve vir no Header com o nome "x-api-key"
 api_key_header = APIKeyHeader(name="x-api-key", auto_error=False)
