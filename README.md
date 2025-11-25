@@ -35,6 +35,7 @@ O sistema roda em um loop infinito no Render.com, sem intervenção humana.
 * **Arquitetura Assíncrona (AsyncIO):** Utiliza `httpx` e `asyncio` para realizar múltiplas requisições HTTP e processamento de dados de forma não bloqueante, garantindo alta performance mesmo monitorando dezenas de fontes.
 * **Sniper Mode (Filtragem Inteligente):** Lógica dedicada (`services.py`) que filtra o ruído usando uma lista de keywords específicas (ex: "RTX 4070", "Ryzen 7800X3D"), ignorando ofertas irrelevantes.
 * **Web Scraping Integrado:** Uso de `BeautifulSoup4` para analisar o HTML das descrições dos feeds RSS e extrair imagens que normalmente ficam ocultas.
+* **Segurança via API Key:** Proteção de rotas administrativas (`POST`) contra uso não autorizado, exigindo um cabeçalho de autenticação personalizado.
 * **Persistência Híbrida:**
     * **Desenvolvimento:** Configurado para usar **SQL Server** via Docker.
     * **Produção (Cloud):** Detecta automaticamente o ambiente e conecta ao **PostgreSQL** (Neon Tech).
